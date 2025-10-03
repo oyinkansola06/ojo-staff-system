@@ -1,4 +1,3 @@
-// src/api/endpoints.js
 export const ENDPOINTS = {
   // Health check
   HEALTH: '/health',

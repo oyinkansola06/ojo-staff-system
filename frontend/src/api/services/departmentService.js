@@ -1,4 +1,3 @@
-// src/api/services/departmentService.js
 import apiClient from '../client';
 import { ENDPOINTS } from '../endpoints';
 

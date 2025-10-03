@@ -1,4 +1,3 @@
-// src/api/client.js
 import axios from 'axios';
 
 // Your API server URL
