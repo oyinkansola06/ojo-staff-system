@@ -78,20 +78,41 @@ const mockAttendanceData = [
 ];
 
 function AttendanceModule() {
-  const [attendanceRecords, setAttendanceRecords] = useState(mockAttendanceData);
-  const [selectedDate, setSelectedDate] = useState('2025-09-27');
+  // State for data
+  const [attendanceRecords, setAttendanceRecords] = useState([]);
+  const [attendanceStats, setAttendanceStats] = useState({});
+  const [staffList, setStaffList] = useState([]);
+  const [departmentList, setDepartmentList] = useState([]);
+  
+  
+// State for UI
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [showCheckInModal, setShowCheckInModal] = useState(false);
   const [showManualEntryModal, setShowManualEntryModal] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
-
-  // Update current time every second
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Load initial data when component mounts
+  useEffect(() => {
+    loadInitialData();
+  }, []);
+
+  // Load attendance data when date changes
+  useEffect(() => {
+    if (selectedDate) {
+      loadAttendanceData();
+    }
+  }, [selectedDate]);
+
 
   // Get today's attendance for a specific date
   const getTodayAttendance = () => {
@@ -141,8 +162,145 @@ function AttendanceModule() {
 
     return filtered;
   };
+// Function to load initial data (staff and departments)
+  const loadInitialData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-  // Calculate statistics
+      // Load staff and departments in parallel
+      const [staffResult, departmentResult] = await Promise.all([
+        StaffService.getAllStaff(),
+        DepartmentService.getAllDepartments()
+      ]);
+
+      if (staffResult.success) {
+        setStaffList(staffResult.data);
+      } else {
+        console.error('Failed to load staff:', staffResult.message);
+      }
+
+      if (departmentResult.success) {
+        setDepartmentList(departmentResult.data);
+      } else {
+        console.error('Failed to load departments:', departmentResult.message);
+      }
+
+      // Load today's attendance
+      await loadAttendanceData();
+
+    } catch (err) {
+      setError('Failed to load initial data: ' + err.message);
+      console.error('Error loading initial data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+   // Function to load attendance data for selected date
+  const loadAttendanceData = async () => {
+    try {
+      const result = await AttendanceService.getAttendanceByDate(selectedDate);
+      
+      if (result.success) {
+        setAttendanceRecords(result.data.records || []);
+        setAttendanceStats(result.data.stats || {});
+      } else {
+        console.error('Failed to load attendance:', result.message);
+        setAttendanceRecords([]);
+        setAttendanceStats({});
+      }
+    } catch (err) {
+      console.error('Error loading attendance:', err);
+      setAttendanceRecords([]);
+      setAttendanceStats({});
+    }
+  };
+   // Function to handle check-in
+  const handleCheckIn = async (staffId, timeIn) => {
+    try {
+      const result = await AttendanceService.checkIn(staffId, timeIn, selectedDate);
+      
+      if (result.success) {
+        alert('Check-in successful!');
+        // Reload attendance data to show the change
+        await loadAttendanceData();
+      } else {
+        alert('Check-in failed: ' + result.message);
+      }
+    } catch (err) {
+      alert('Check-in failed: ' + err.message);
+    }
+  };
+  // Function to handle check-out
+  const handleCheckOut = async (staffId, timeOut) => {
+    try {
+      const result = await AttendanceService.checkOut(staffId, timeOut, selectedDate);
+      
+      if (result.success) {
+        alert('Check-out successful!');
+        // Reload attendance data to show the change
+        await loadAttendanceData();
+      } else {
+        alert('Check-out failed: ' + result.message);
+      }
+    } catch (err) {
+      alert('Check-out failed: ' + err.message);
+    }
+  };
+  // Function to handle manual entry
+  const handleManualEntry = async (entryData) => {
+    try {
+      const result = await AttendanceService.createManualEntry({
+        ...entryData,
+        attendance_date: selectedDate
+      });
+      
+      if (result.success) {
+        alert('Manual entry created successfully!');
+        // Reload attendance data to show the change
+        await loadAttendanceData();
+        setShowManualEntryModal(false);
+      } else {
+        alert('Manual entry failed: ' + result.message);
+      }
+    } catch (err) {
+      alert('Manual entry failed: ' + err.message);
+    }
+  };
+
+  // Show loading state
+  if (loading && attendanceRecords.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="text-lg text-gray-600">Loading attendance data...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded">
+        <div className="flex items-center">
+          <AlertCircle className="mr-2" size={20} />
+          <div>
+            <strong>Error:</strong>
+            <p>{error}</p>
+          </div>
+        </div>
+        <button 
+          onClick={loadInitialData}
+          className="mt-2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+        >
+          Try Again
+        </button>
+      </div>
+    );
+  }
+
   const getAttendanceStats = () => {
     const todayRecords = getTodayAttendance();
     const totalStaff = mockStaff.length;
