@@ -1,4 +1,3 @@
-// src/api/services/staffService.js
 import apiClient from '../client';
 import { ENDPOINTS } from '../endpoints';
 
